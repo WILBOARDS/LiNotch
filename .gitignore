@@ -1,0 +1,35 @@
+# build
+build/
+cmake-build-*/
+out/
+*.o
+*.so
+*.a
+compile_commands.json
+.cache/
+qrc_*.cpp
+moc_*.cpp
+moc_*.h
+ui_*.h
+*_autogen/
+
+# generated wayland protocol code
+src/protocol/generated/
+
+# packaging
+deb-build/
+*.deb
+*.build
+*.changes
+*.debhelper.log
+debian/.debhelper/
+debian/files
+debian/linotch*/
+
+# tooling
+.qoder/
+.vscode/
+.idea/
+
+# local
+*.log

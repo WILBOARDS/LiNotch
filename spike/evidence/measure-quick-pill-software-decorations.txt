@@ -1,0 +1,24 @@
+binary: ./build/linotch-spike-quick
+mode: qt-quick  duration: 20s  wayland: wayland-1
+log: /tmp/linotch-spike-H7xBgz.log
+
+samples: 21 over 21.444s
+RSS kB: mean=139216 min=139216 max=139216  (limit 61440)
+CPU %:  total_mean=0.000 steady_mean=0.000 median_sample=0.000 max_sample=0.000  (limit 0.3)
+
+--- spike phases ---
+[      20 ms] OQ1 probe: nativeResourceForIntegration("display")=0x649c2ad90fd0 (non-null)
+[      20 ms] OQ1 probe: nativeResourceForWindow("surface")=0x649c2ae947c0 (non-null)
+[      20 ms] OQ1 answer: YES (display and surface are both non-null after create(), before any commit)
+[      25 ms] global wl_shm v2 (bound v1)
+[      25 ms] global zwlr_layer_shell_v1 v5 (bound v5)
+[      25 ms] layer surface created: layer=TOP anchor=top size=260x36 exclusive_zone=0 keyboard=none (layer_shell bound v5)
+[      25 ms] initial commit sent with NO buffer attached; waiting for configure
+[      25 ms] event configure: serial=277329 requested=260x36 using=260x36 (acked)
+[     127 ms] qt-quick: show() issued after configure ack; alpha_buffer=-1 hasAlpha=0
+[     131 ms] quick-stack: libQt6QmlWorkerScript.so.6.4.2, libQt6Qml.so.6.4.2, libQt6QmlModels.so.6.4.2, libQt6Quick.so.6.4.2 over 816 mapped lines
+[     137 ms] mapped=yes (QQuickWindow frameSwapped); surface=0x649c2ae947c0 size=260x36
+[     139 ms] event frame done (time=15368569): compositor presented the surface
+
+full log: /tmp/linotch-spike-H7xBgz.log
+FAIL: mean RSS above limit

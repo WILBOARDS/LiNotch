@@ -1,8 +1,9 @@
-# Spike 0 — evidence report
+# Spike 0 / 0b — evidence report
 
 Answers to OQ1 and OQ2 from
 `docs/superpowers/specs/2026-11-03-linotch-design.md`, measured on the target
-machine against the running cosmic-comp. Throwaway spike; not product code.
+machine against the running cosmic-comp, plus the Spike 0b paint-path comparison
+at the end of this file. Throwaway spike; not product code.
 
 ## Verdict
 
@@ -210,7 +211,7 @@ QT_WAYLAND_DISABLE_WINDOWDECORATION=1 DURATION=300 MODE=qt-bypass \
 ## Residual risks
 
 - QML/Quick footprint unmeasured (blocking follow-up before the shell-spine
-  decision).
+  decision). **Resolved by Spike 0b below.**
 - `QT_WAYLAND_DISABLE_WINDOWDECORATION` is a Qt environment knob whose name is
   about decorations, not about avoiding EGL. Its effect here is real and
   measured, but it is an implementation detail of Qt 6.4's Wayland plugin; a
@@ -219,3 +220,157 @@ QT_WAYLAND_DISABLE_WINDOWDECORATION=1 DURATION=300 MODE=qt-bypass \
 - Only Qt 6.4.2 was tested; newer Qt may change the bypass/decoration
   behaviour.
 - Layer-shell v5 was exercised against cosmic-comp only.
+
+---
+
+# Spike 0b — Qt Quick vs hand-painted, measured
+
+Answers the blocking item Spike 0 left open: what does a Qt 6.4.2 Qt Quick
+surface on `zwlr_layer_shell_v1` actually cost, and is it affordable next to the
+`QBackingStore` + `QPainter` path? Throwaway spike; not product code.
+
+## Verdict
+
+**Use QPainter.** On an identical 260x36 idle pill, Qt Quick (software render
+loop, the only Quick configuration that passes) costs **50.7 MB** against
+**31.0 MB** for hand-painted `QPainter` into `QBackingStore` — 1.63x, and 2.35x
+Spike 0's blank-rect floor once real content is drawn. Quick buys nothing that
+survives measurement here: it cannot express the notch silhouette without
+`QtQuick.Shapes`, it needs six extra runtime packages, and its one apparent
+advantage (cheaper animation) reversed under a fair comparison.
+
+## Method, and the artifact that had to be removed first
+
+The first version of this spike linked `Qt6::Quick` into the same binary as the
+`QBackingStore` mode. Measuring the QPainter path in that process reported
+**39.1 MB** for a *blank* surface, against Spike 0's 21.6 MB, because
+`libQt6Quick` (2 452 kB), `libQt6Qml` (1 900 kB), `libQt6Widgets` (1 960 kB),
+`libicui18n` (1 156 kB), `libcrypto` (1 416 kB) and `libgnutls` (792 kB) were
+all resident. Summed from `/proc/<pid>/smaps`.
+
+The spike is therefore built as two executables from one source file
+(`SPIKE_HAS_QUICK`): `linotch-spike-gui` links `Qt6::Gui` only, and
+`linotch-spike-quick` adds `Qt6::Quick`. Every number below comes from a
+split binary. Anyone comparing paint paths by RSS must do the same, or they are
+measuring the linker, not the renderer.
+
+A second correction: Spike 0's 21.6 MB was a surface painted with one
+`fillRect`. Real content — antialiased path, text, glyph caches — costs about
++9 MB, so the honest idle figures are 31.0 MB (QPainter) and 50.7 MB (Quick),
+not 21.6 vs 50.7.
+
+## Idle and opened, 20 s windows unless noted
+
+All runs: TOP layer, top anchor, `exclusive_zone` 0, `QT_QPA_PLATFORM=wayland`,
+`WAYLAND_DISPLAY=wayland-1`, cosmic-comp 0.1~1792508925~8cb1802.
+
+| # | path | surface | knobs | RSS mean (kB) | CPU total_mean | driver mapped |
+|---|---|---|---|---|---|---|
+| 1 | QPainter | pill 260x36, full content | `DISABLE_WINDOWDECORATION=1` | **30,976** | 0.000 % | none |
+| 2 | QPainter | panel 420x340, full content | same | 35,191 | 0.047 % | none |
+| 3 | QPainter | panel, full-surface repaint at 16 ms | same | 39,032 | 21.312 % | none |
+| 4 | QPainter | pill, region-damaged repaint at 16 ms | same | 31,144 | 2.964 % | none |
+| 5 | Quick | pill 260x36, full QML tree | `QUICK_BACKEND=software` + `DISABLE_WINDOWDECORATION=1` | **50,700** | 0.000 % | none |
+| 5b | Quick | pill, same, **300 s** | same | 50,632 (flat, min=max) | 0.000 % | none |
+| 6 | Quick | panel 420x340, full QML tree | same | 61,999 | 0.887 % | none |
+| 7 | Quick | pill, animating | same | 50,827 | 6.420 % | none |
+| 8 | Quick | pill, decorations allowed | `QUICK_BACKEND=software` only | 139,216 | 0.000 % | `libgallium` |
+| 9 | Quick | pill | none (default GL) | 158,628 | 0.000 % | `renderD128` |
+
+Reading:
+
+- Only row 5/5b and 1/2 are inside the design's 60 MiB idle gate, and only
+  row 1/2 are inside a gate worth keeping. Row 5 has 9 MB of headroom against a
+  knob it does not own.
+- Rows 8 and 9 are the silent-failure modes: forget one of the two environment
+  variables and Qt Quick costs 139 MB or 158 MB with no error and no warning.
+  The QPainter path depends on the same `DISABLE_WINDOWDECORATION` knob, but its
+  failure mode is Spike 0's measured 111 MB with an explicit EGL load, and there
+  is no second knob to forget.
+- Animation: rows 3/4 versus 7. Quick is *not* cheaper to animate; the earlier
+  apparent 40x advantage was an artifact of comparing an animating panel against
+  an animating pill in a contaminated binary. Both paths cost percent-of-a-core
+  numbers, so **nothing may animate continuously in the idle state** — that is a
+  design constraint, not a tuning question. The 0.3 % idle gate is only met by
+  rows 1, 2 and 5, which do not repaint.
+- Row 4 (2.96 %) versus row 3 (21.3 %) shows the QPainter path's real lever:
+  damage only what changed. It is not free, because `drawProductContent` re-runs
+  the whole draw routine and clipping only skips the writes, not the work.
+
+## Findings that are not about RSS
+
+1. **Qt 6.4 `Rectangle` has no per-corner radius.** Verified against
+   `/usr/lib/x86_64-linux-gnu/qt6/qml/QtQuick/plugins.qmltypes`: `radius` is the
+   only radius member; `topLeftRadius` and friends do not exist. The notch
+   silhouette (square where it meets the bezel, rounded below) therefore needs
+   `QtQuick.Shapes` — a seventh runtime module plus a hand-written path — or
+   `Canvas`. In QPainter it is `QPainterPath` with two `quadTo` calls
+   (`src/main.cpp`, `drawProductContent`). This was the product's first visual
+   requirement, and Quick could not express it as configured.
+   **Verified on screen, 2026-11-03:** the QPainter pill renders square at the
+   top edge with the bottom corners rounded, and the desktop shows through the
+   curve. The QML render, by contrast, rounds all four corners. cosmic-comp does
+   *not* apply its own corner radius to a layer surface, so
+   `cosmic_corner_radius_layer_v1` is not needed and no second protocol has to be
+   vendored for the silhouette.
+2. **Transparency works, and `QWindow::format()` lies.** Every path reports
+   `alpha_buffer=-1` and `hasAlpha()=false`, including with
+   `QSurfaceFormat::setDefaultFormat(alpha=8)` applied before
+   `QGuiApplication` — that call is a no-op on this route. The real buffer is
+   `QImage::Format_ARGB32_Premultiplied` (`store_format=6`,
+   `store_hasAlpha=1`, read from `dynamic_cast<const QImage *>` of
+   `QBackingStore::paintDevice()`), and the user confirmed on this machine that
+   the desktop shows through the panel's rounded bottom corners
+   (`evidence/measure-gui-alpha-probe.txt`, `logs/gui-alpha-probe.log`).
+   Conclusion: do not gate the design on `QSurfaceFormat`; assert on the
+   backing-store image format instead, and check the corners visually.
+3. **`QQuickView` obeys the same ordering as `QWindow`.** OQ1 reconfirmed for
+   Quick: `create()` → `nativeResourceForWindow("surface")` → layer role →
+   `configure` acked at 15 ms → `show()` after the ack → `frameSwapped` at
+   38 ms. `Qt::BypassWindowManagerHint` is still mandatory; `SizeRootObjectToView`
+   is required or the view sizes itself to the root item.
+4. **Runtime package closure.** Quick needed, beyond `qt6-declarative-dev`:
+   `qml6-module-qtquick`, `-qtquick-window`, `-qtquick-layouts`, `qml6-module-qtqml`,
+   `-qtqml-models`, `-qtqml-workerscript`. `import QtQuick` fails at runtime with
+   `module "QtQml.WorkerScript" is not installed` until the last one is present —
+   a failure that would only appear on a user's machine after install, because
+   the -dev package does not pull it. QPainter needs none of these.
+5. `Row` has no `verticalAlignment` (that is `RowLayout`), and `QQmlContext` is
+   not pulled in by `QQmlEngine`. Both are ordinary compile-time noise, recorded
+   only because they were the two errors that cost a rebuild.
+
+## Reproduce
+
+```bash
+cd /home/kufgr/LiNotch/spike && cmake -S . -B build -G Ninja && cmake --build build
+export XDG_RUNTIME_DIR=/run/user/$(id -u) WAYLAND_DISPLAY=wayland-1 QT_QPA_PLATFORM=wayland
+
+# row 1 — QPainter idle pill
+QT_WAYLAND_DISABLE_WINDOWDECORATION=1 DURATION=20 MODE=qt-bypass \
+  ./scripts/measure-oq2.sh ./build/linotch-spike-gui
+
+# row 5 — Qt Quick idle pill, the only affordable Quick configuration
+QT_QUICK_BACKEND=software QT_WAYLAND_DISABLE_WINDOWDECORATION=1 DURATION=300 MODE=qt-quick \
+  ./scripts/measure-oq2.sh ./build/linotch-spike-quick
+
+# row 4 — region-damaged animation cost
+QT_WAYLAND_DISABLE_WINDOWDECORATION=1 DURATION=60 MODE=qt-bypass \
+  ./scripts/measure-oq2.sh ./build/linotch-spike-gui --animate --region
+```
+
+Artifacts: `evidence/measure-gui-*.txt`, `evidence/measure-quick-*.txt`,
+`evidence/logs/*.log`.
+
+## Spike 0b residual risks
+
+- The two knobs remain Qt 6.4 implementation details. A runtime assertion that
+  no `libgallium`/`libnvidia`/`renderD128` is mapped belongs in the product
+  startup path, and `linotch status` should print it.
+- Quick panel RSS was measured over 20 s (62.0 MB) and varied 58.8-62.0 MB
+  between runs; the pill was flat across 300 s. Panel numbers need a longer
+  window if Quick is ever revisited.
+- `drawProductContent` is a spike's approximation of the real panel: no
+  per-item invalidation, no cached paths. A production QPainter UI should beat
+  row 4 comfortably, but that is a promise, not a measurement.
+- Neither path was tested against a second output, under scaling (`wp_fractional_scale`),
+  or across a compositor-driven resize.

@@ -4,17 +4,29 @@
 //   --mode=manual    (default) drive the Qt-created wl_surface with a wl_shm buffer
 //   --mode=qt-bypass use Qt's own rendering (QBackingStore) with
 //                    QT_WAYLAND_USE_BYPASSWINDOWMANAGERHINT=1 + BypassWindowManagerHint
+//   --mode=qt-quick  same ordering, but a QQuickView paints the surface (Spike 0b)
 //   --mode=qt-show   control: show() without bypass; expected wl_surface role conflict
 //
 // This is throwaway spike code, not LiNotch product code.
 
 #include <QGuiApplication>
 #include <QWindow>
+#include <QSurfaceFormat>
 #include <QBackingStore>
 #include <QPainter>
+#include <QPainterPath>
+#include <QImage>
 #include <QTimer>
 #include <QByteArray>
 #include <qpa/qplatformnativeinterface.h>
+
+#ifdef SPIKE_HAS_QUICK
+#include <QQuickView>
+#include <QQmlEngine>
+#include <QQmlContext>
+#include <QQuickWindow>
+#include <QUrl>
+#endif
 
 #include <wayland-client.h>
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
@@ -59,6 +71,12 @@ struct Options {
     int durationSec = 60;
     int width = 260;
     int height = 36;
+    std::string qml = "Pill.qml";
+    bool animate = false;
+    bool plain = false;
+    bool alpha = true;
+    bool alphaProbe = false;
+    bool region = false;
 };
 
 Options parseOptions(int argc, char **argv)
@@ -78,6 +96,22 @@ Options parseOptions(int argc, char **argv)
             o.width = std::atoi(v);
         else if (const char *v = value("--height="))
             o.height = std::atoi(v);
+        else if (const char *v = value("--qml="))
+            o.qml = v;
+        else if (a == "--animate")
+            o.animate = true;
+        else if (a == "--plain")
+            o.plain = true;
+        else if (a == "--no-alpha")
+            o.alpha = false;
+        else if (a == "--alpha-probe")
+            o.alphaProbe = true;
+        else if (a == "--region")
+            o.region = true;
+    }
+    if (o.qml.find_first_of("/\\") != std::string::npos || o.qml.empty() || o.qml.find("..") != std::string::npos) {
+        std::fprintf(stderr, "ERROR: --qml must be a bare filename in spike/qml/\n");
+        std::exit(2);
     }
     return o;
 }
@@ -113,6 +147,9 @@ struct Spike {
     bool mapped = false;
     bool framePresented = false;
     bool finished = false;
+    int quickFrames = 0;
+    int bypassFrames = 0;
+    int animTick = 0;
 
     bool start()
     {
@@ -122,10 +159,26 @@ struct Spike {
             return false;
         }
 
+#ifdef SPIKE_HAS_QUICK
+        if (opt.mode == "qt-quick") {
+            auto *view = new QQuickView();
+            view->setResizeMode(QQuickView::SizeRootObjectToView);
+            window.reset(view);
+            phase("qt-quick: QQuickView stands in for QWindow (SizeRootObjectToView, transparent fill)");
+        } else {
+            window = std::make_unique<QWindow>();
+        }
+#else
         window = std::make_unique<QWindow>();
+#endif
         window->setTitle(QStringLiteral("LiNotch Spike"));
+        // The notch silhouette needs real transparency: without an alpha buffer
+        // Qt's wl_shm path picks XRGB8888 and the rounded corners come out
+        // opaque black. The format is requested process-wide via
+        // QSurfaceFormat::setDefaultFormat() because setFormat() on the window
+        // is not honoured here (measured: alpha_buffer stayed -1).
         window->resize(width, height);
-        if (opt.mode == "qt-bypass")
+        if (opt.mode == "qt-bypass" || opt.mode == "qt-quick")
             window->setFlag(Qt::BypassWindowManagerHint);
 
         window->create();
@@ -275,6 +328,137 @@ struct Spike {
         });
     }
 
+    // The same content as qml/Pill.qml and qml/Panel.qml, painted by hand, so
+    // that the two paint paths are compared on equal work. Spike 0's 21.6 MB
+    // was a blank rect, and a blank rect is not the product.
+    void drawProductContent(QPainter &p)
+    {
+        const bool panel = height > 100;
+        p.setRenderHint(QPainter::Antialiasing, true);
+        // Clear first: everything outside the notch silhouette must be
+        // transparent, and a fresh QBackingStore is uninitialised.
+        p.fillRect(QRect(0, 0, width, height), Qt::transparent);
+
+        if (opt.alphaProbe) {
+            // Left half opaque black, right half 37 % black. On an ARGB surface
+            // the right half reads as a tint over whatever is behind the notch;
+            // on XRGB the two halves are indistinguishable. Needed because
+            // QWindow::format() reports alpha_buffer=-1 on every path measured
+            // here, so the API cannot answer the transparency question.
+            p.fillRect(QRect(0, 0, width / 2, height), QColor(0, 0, 0, 255));
+            p.fillRect(QRect(width / 2, 0, width - width / 2, height), QColor(0, 0, 0, 96));
+            return;
+        }
+
+        // The notch silhouette: square where it meets the bezel, ~18 px radius
+        // on the two bottom corners. Three lines here; Qt Quick 6.4 has no
+        // per-corner radius property at all.
+        QPainterPath shape;
+        const int r = 18;
+        shape.moveTo(0, 0);
+        shape.lineTo(width, 0);
+        shape.lineTo(width, height - r);
+        shape.quadTo(width, height, width - r, height);
+        shape.lineTo(r, height);
+        shape.quadTo(0, height, 0, height - r);
+        shape.closeSubpath();
+        p.fillPath(shape, panel ? QColor("#ff0a0a0c") : QColor("#ff000000"));
+        if (opt.plain)
+            return; // isolates the cost of text, glyphs and paths from the cost of the surface itself
+
+        QFont font(QStringLiteral("Sans Serif"));
+        const auto drawText = [&](const QRect &rect, const QString &text, int px, const QColor &color,
+                                  QFont::Weight weight = QFont::Normal, Qt::Alignment align = Qt::AlignVCenter) {
+            font.setPixelSize(px);
+            font.setWeight(weight);
+            p.setFont(font);
+            p.setPen(color);
+            p.drawText(rect, Qt::TextSingleLine | int(align), text);
+        };
+
+        if (!panel) {
+            drawText(QRect(14, 0, 48, height), QStringLiteral("14:32"), 15, QColor("#f2ffffff"), QFont::DemiBold);
+            p.fillRect(QRect(70, 11, 1, 14), QColor("#2affffff"));
+            for (int i = 0; i < 4; ++i) {
+                const int h = 4 + ((animTick + i * 3) % 11);
+                p.fillRect(QRect(84 + i * 5, (height - h) / 2, 3, h), QColor("#ff4ad9a0"));
+            }
+            p.setBrush(QColor("#ff5b9dff"));
+            p.setPen(Qt::NoPen);
+            p.drawEllipse(QRectF(112, 15, 6, 6));
+            drawText(QRect(130, 0, 60, height), QStringLiteral("87%"), 13, QColor("#d9ffffff"));
+            return;
+        }
+
+        // Panel: header, now-playing, four meters, five tiles, twelve rows.
+        drawText(QRect(14, 8, 260, 18), QStringLiteral("Tuesday, 3 November"), 12, QColor("#b3ffffff"));
+        p.setBrush(QColor("#1affffff"));
+        p.setPen(Qt::NoPen);
+        p.drawEllipse(QRectF(382, 8, 22, 22));
+
+        p.setBrush(QColor("#ff2b3a55"));
+        p.drawRoundedRect(QRectF(14, 34, 44, 44), 8, 8);
+        drawText(QRect(70, 34, 240, 18), QStringLiteral("Anemosyne"), 14, QColor("#f2ffffff"));
+        drawText(QRect(70, 52, 240, 16), QStringLiteral("Julianna Barwic \xe2\x80\x94 Nepenthe"), 11,
+                 QColor("#99ffffff"));
+        p.setBrush(QColor("#33ffffff"));
+        p.drawRoundedRect(QRectF(70, 72, 240, 3), 1, 1);
+        p.setBrush(QColor("#ff4ad9a0"));
+        p.drawRoundedRect(QRectF(70, 72, 100, 3), 1, 1);
+        drawText(QRect(330, 40, 70, 30), QStringLiteral("\xe2\x8f\xae \xe2\x96\xb6 \xe2\x8f\xad"), 15,
+                 QColor("#e6ffffff"));
+
+        static const char *meterLabels[] = {"BAT 87%", "CPU", "RAM", "NET"};
+        for (int i = 0; i < 4; ++i) {
+            const int x = 14 + i * 100;
+            drawText(QRect(x, 92, 92, 14), QString::fromLatin1(meterLabels[i]), 10, QColor("#8cffffff"));
+            p.setBrush(QColor("#26ffffff"));
+            p.setPen(Qt::NoPen);
+            p.drawRoundedRect(QRectF(x, 108, 92, 4), 2, 2);
+            const int frac = 20 + ((animTick + i * 7) % 65);
+            p.setBrush(QColor(i == 1 ? "#ffffc466" : "#ff5b9dff"));
+            p.drawRoundedRect(QRectF(x, 108, 92 * frac / 100, 4), 2, 2);
+        }
+
+        static const char *tileLabels[] = {"\xf0\x9f\x94\x8a 42%", "\xe2\x98\x80 70%", "\xe2\x98\xbe DND",
+                                           "\xe2\x8f\x9e wi", "\xe2\x9c\xa6 bt"};
+        // Square tiles: 420 - 2*14 margins - 4*8 gaps = 352 over 5 tiles = 72.
+        const int tileEdge = (width - 28 - 4 * 8) / 5;
+        for (int i = 0; i < 5; ++i) {
+            const int x = 14 + i * (tileEdge + 8);
+            p.setBrush(QColor("#17ffffff"));
+            p.setPen(Qt::NoPen);
+            p.drawRoundedRect(QRectF(x, 122, tileEdge, tileEdge), 10, 10);
+            drawText(QRect(x, 122, tileEdge, tileEdge), QString::fromUtf8(tileLabels[i]), 11, QColor("#e6ffffff"),
+                     QFont::Normal, Qt::AlignCenter);
+        }
+
+        const int listTop = 122 + tileEdge + 6;
+        p.setBrush(QColor("#0dffffff"));
+        p.drawRoundedRect(QRectF(14, listTop, width - 28, height - listTop - 14), 10, 10);
+        for (int i = 0; i < 12; ++i) {
+            const int y = listTop + 8 + i * 24;
+            if (y + 22 > height - 14)
+                break;
+            p.setBrush(QColor("#33ffffff"));
+            p.drawRoundedRect(QRectF(22, y, 16, 16), 4, 4);
+            drawText(QRect(46, y - 2, width - 74, 12), QStringLiteral("Build finished"), 11, QColor("#e6ffffff"));
+            drawText(QRect(46, y + 9, width - 74, 11),
+                     QStringLiteral("spike0/layer-shell \xc2\xb7 notification body text %1").arg(i), 10,
+                     QColor("#8cffffff"));
+        }
+    }
+
+    void repaintContent(const QRegion &region)
+    {
+        backingStore->beginPaint(region);
+        QPainter painter(backingStore->paintDevice());
+        drawProductContent(painter);
+        painter.end();
+        backingStore->endPaint();
+        backingStore->flush(region);
+    }
+
     void paintWithQt()
     {
         phase("qt-bypass: resizing window to %dx%d, show(), then QBackingStore paint", width, height);
@@ -284,18 +468,129 @@ struct Spike {
         backingStore = std::make_unique<QBackingStore>(window.get());
         backingStore->resize(QSize(width, height));
 
-        const QRegion paintRegion(0, 0, width, height);
-        backingStore->beginPaint(paintRegion);
-        QPainter painter(backingStore->paintDevice());
-        painter.fillRect(QRect(0, 0, width, height), QColor(0, 0, 0));
-        painter.end();
-        backingStore->endPaint();
+        requestFrameProof();
+        repaintContent(QRegion(0, 0, width, height));
+        // The decisive transparency question is what buffer Qt actually
+        // allocated, not what QWindow claims it requested: alphaBufferSize()
+        // reads -1 on every path measured here. The raster backing store's paint
+        // device is a QImage, and its format is the format of the shm buffer.
+        const auto *store = dynamic_cast<const QImage *>(backingStore->paintDevice());
+        phase("qt-bypass: flush issued (Qt owns the buffer); content=%s alpha_buffer=%d "
+              "format_hasAlpha=%d store_format=%d store_hasAlpha=%d",
+              height > 100 ? "Panel" : "Pill", window->format().alphaBufferSize(),
+              window->format().hasAlpha() ? 1 : 0, store ? int(store->format()) : -1,
+              store && store->hasAlphaChannel() ? 1 : 0);
+        logLoadedGlStack();
+        logSelfMetrics();
+        onMapped("Qt QBackingStore buffer committed");
+
+        if (opt.animate) {
+            auto *ticker = new QTimer(&app);
+            QObject::connect(ticker, &QTimer::timeout, &app, [this] {
+                ++animTick;
+                // Default: full-surface repaint, comparable with the Qt Quick
+                // scene graph, which cannot damage a sub-region. With --region,
+                // only the equaliser column is repainted - the thing a real
+                // implementation would do, and a cost Quick cannot match.
+                const QRegion dirty = (opt.region && height <= 100) ? QRegion(80, 0, 30, height)
+                                                                    : QRegion(0, 0, width, height);
+                repaintContent(dirty);
+                if (++bypassFrames == 60)
+                    logSelfMetrics();
+            });
+            ticker->start(16);
+        }
+    }
+
+    void logLoadedGlStack()
+    {
+        static const char *driverNeedles[] = {"libEGL", "libwayland-egl", "libOpenGL", "libgallium",
+                                              "libnvidia", "libGLX", "libdrm", "/dri/", "swrast"};
+        static const char *quickNeedles[] = {"libQt6Quick", "libQt6Qml", "QtQuick/libqtquick2"};
+
+        std::string drivers;
+        std::string quick;
+        size_t mappedLines = 0;
+        FILE *f = std::fopen("/proc/self/maps", "r");
+        if (!f) {
+            phase("note: /proc/self/maps unreadable");
+            return;
+        }
+        const auto appendBase = [](std::string &hay, const char *line) {
+            const char *slash = std::strrchr(line, '/');
+            std::string name = slash ? slash + 1 : line;
+            while (!name.empty() && (name.back() == '\n' || name.back() == '\r' || name.back() == ' '))
+                name.pop_back();
+            if (hay.find(name) == std::string::npos) {
+                hay += hay.empty() ? "" : ", ";
+                hay += name;
+            }
+        };
+
+        char line[1024];
+        while (std::fgets(line, sizeof line, f)) {
+            ++mappedLines;
+            for (const char *needle : driverNeedles) {
+                if (std::strstr(line, needle))
+                    appendBase(drivers, line);
+            }
+            for (const char *needle : quickNeedles) {
+                if (std::strstr(line, needle))
+                    appendBase(quick, line);
+            }
+        }
+        std::fclose(f);
+
+        phase("gl-stack: %s", drivers.empty() ? "NONE (no EGL/GL driver mapped; Qt Quick is software-rendering)"
+                                                : drivers.c_str());
+        phase("quick-stack: %s over %zu mapped lines", quick.empty() ? "not mapped" : quick.c_str(), mappedLines);
+    }
+
+#ifdef SPIKE_HAS_QUICK
+    void paintWithQuick()
+    {
+        auto *view = static_cast<QQuickView *>(window.get());
+        view->setColor(Qt::transparent);
+        view->rootContext()->setContextProperty("spikeAnimate", opt.animate ? 1 : 0);
+
+        const QString source = QString::fromLocal8Bit(SPIKE_QML_DIR "/") + QString::fromStdString(opt.qml);
+        phase("qt-quick: loading %s", qPrintable(source));
+        view->setSource(QUrl::fromLocalFile(source));
+        if (view->status() == QQuickView::Error) {
+            const QString err = view->errors().isEmpty() ? QStringLiteral("<no error reported>")
+                                                         : view->errors().first().toString();
+            phase("ERROR: QQuickView failed to load the QML tree: %s", qPrintable(err));
+            finished = true;
+            app.exit(5);
+            return;
+        }
+
+        QObject::connect(view, &QQuickWindow::frameSwapped, &app, [this] {
+            ++quickFrames;
+            if (quickFrames == 1) {
+                phase("qt-quick: first frameSwapped at %lld ms", elapsedMs());
+                logLoadedGlStack();
+                logSelfMetrics();
+                onMapped("QQuickWindow frameSwapped");
+            } else if (quickFrames == 60) {
+                phase("qt-quick: 60 frames swapped; anim=%d size=%dx%d", opt.animate ? 1 : 0, width, height);
+                logSelfMetrics();
+                logLoadedGlStack();
+            }
+        });
 
         requestFrameProof();
-        backingStore->flush(paintRegion);
-        phase("qt-bypass: QBackingStore flush issued (Qt owns the buffer)");
-        onMapped("Qt QBackingStore buffer committed");
+        view->resize(width, height);
+        view->show();
+        phase("qt-quick: show() issued after configure ack; alpha_buffer=%d hasAlpha=%d",
+              view->format().alphaBufferSize(), view->format().hasAlpha() ? 1 : 0);
+
+        QTimer::singleShot(5000, &app, [this] {
+            if (quickFrames == 0 && !finished)
+                phase("note: qt-quick produced no frameSwapped within 5 s (surface committed, rendering unconfirmed)");
+        });
     }
+#endif // SPIKE_HAS_QUICK
 
     void onMapped(const char *how)
     {
@@ -422,6 +717,10 @@ struct Spike {
             s->onMapped("manual wl_shm buffer attached and committed");
         } else if (s->opt.mode == "qt-bypass") {
             QTimer::singleShot(0, &s->app, [s] { s->paintWithQt(); });
+#ifdef SPIKE_HAS_QUICK
+        } else if (s->opt.mode == "qt-quick") {
+            QTimer::singleShot(0, &s->app, [s] { s->paintWithQuick(); });
+#endif
         }
     }
 
@@ -467,16 +766,40 @@ int main(int argc, char **argv)
     g_startTime = SteadyClock::now();
 
     const Options opt = parseOptions(argc, argv);
-    if (opt.mode == "qt-bypass") {
+    if (opt.mode == "qt-bypass" || opt.mode == "qt-quick") {
         qputenv("QT_WAYLAND_USE_BYPASSWINDOWMANAGERHINT", "1");
-        phase("mode=qt-bypass: set QT_WAYLAND_USE_BYPASSWINDOWMANAGERHINT=1 before QGuiApplication");
+        if (opt.mode == "qt-bypass")
+            phase("mode=qt-bypass: set QT_WAYLAND_USE_BYPASSWINDOWMANAGERHINT=1 before QGuiApplication");
     }
-    if (opt.mode != "manual" && opt.mode != "qt-bypass" && opt.mode != "qt-show") {
-        phase("ERROR: unknown --mode=%s (manual|qt-bypass|qt-show)", opt.mode.c_str());
+    if (opt.mode != "manual" && opt.mode != "qt-bypass" && opt.mode != "qt-show" && opt.mode != "qt-quick") {
+        phase("ERROR: unknown --mode=%s (manual|qt-bypass|qt-show|qt-quick)", opt.mode.c_str());
         return 2;
     }
 
+    if (opt.alpha && (opt.mode == "qt-bypass" || opt.mode == "qt-quick")) {
+        QSurfaceFormat fmt = QSurfaceFormat::defaultFormat();
+        fmt.setAlphaBufferSize(8);
+        QSurfaceFormat::setDefaultFormat(fmt);
+        phase("QSurfaceFormat::setDefaultFormat(alpha=8) applied before QGuiApplication");
+    }
+
     QGuiApplication app(argc, argv);
+
+#ifdef SPIKE_HAS_QUICK
+    if (opt.mode == "qt-quick") {
+        // Deliberately not set in code: the whole point of Spike 0b is which
+        // combination of these two knobs is affordable, so the runner owns them.
+        phase("qt-quick env: QT_QUICK_BACKEND=%s QT_WAYLAND_DISABLE_WINDOWDECORATION=%s",
+              qEnvironmentVariable("QT_QUICK_BACKEND", QStringLiteral("<unset>")).toUtf8().constData(),
+              qEnvironmentVariable("QT_WAYLAND_DISABLE_WINDOWDECORATION", QStringLiteral("<unset>")).toUtf8().constData());
+    }
+#else
+    if (opt.mode == "qt-quick") {
+        phase("ERROR: this binary was built without Qt Quick; use linotch-spike-quick");
+        return 2;
+    }
+#endif
+
     Spike spike(opt, app);
 
     if (!spike.start())

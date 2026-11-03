@@ -1,0 +1,27 @@
+[       0 ms] QSurfaceFormat::setDefaultFormat(alpha=8) applied before QGuiApplication
+[      10 ms] qt-quick env: QT_QUICK_BACKEND=software QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+[      10 ms] platform=wayland
+[      12 ms] qt-quick: QQuickView stands in for QWindow (SizeRootObjectToView, transparent fill)
+[      12 ms] QWindow::create() returned (winId=1, visible=0)
+[      12 ms] OQ1 probe: nativeResourceForIntegration("display")=0x625ebac85fe0 (non-null)
+[      12 ms] OQ1 probe: nativeResourceForWindow("surface")=0x625ebad87fd0 (non-null)
+[      12 ms] OQ1 answer: YES (display and surface are both non-null after create(), before any commit)
+[      12 ms] wl_surface protocol version=4
+[      12 ms] registry created; globals will arrive through Qt's event loop
+[      15 ms] global wl_shm v2 (bound v1)
+[      15 ms] global zwlr_layer_shell_v1 v5 (bound v5)
+[      15 ms] layer surface created: layer=TOP anchor=top size=260x36 exclusive_zone=0 keyboard=none (layer_shell bound v5)
+[      15 ms] initial commit sent with NO buffer attached; waiting for configure
+[      15 ms] event configure: serial=266784 requested=260x36 using=260x36 (acked)
+[      15 ms] qt-quick: loading /home/kufgr/LiNotch/spike/qml/Pill.qml
+[      28 ms] qt-quick: show() issued after configure ack; alpha_buffer=-1 hasAlpha=0
+[      28 ms] qt-quick: first frameSwapped at 28 ms
+[      29 ms] gl-stack: libOpenGL.so.0.0.0, libGLX.so.0.0.0, libEGL.so.1.1.0
+[      29 ms] quick-stack: libQt6QmlWorkerScript.so.6.4.2, libQt6Qml.so.6.4.2, libQt6Quick.so.6.4.2, libQt6QmlModels.so.6.4.2 over 583 mapped lines
+[      30 ms] final self metrics: rss_kb=50552 pss_kb=29551
+[      30 ms] mapped=yes (QQuickWindow frameSwapped); surface=0x625ebad87fd0 size=260x36
+[      30 ms] running for 60 s from map; samples taken by scripts/measure-oq2.sh
+[      31 ms] event frame done (time=14979870): compositor presented the surface
+[   60261 ms] duration elapsed; quitting
+[   60264 ms] final self metrics: rss_kb=50264 pss_kb=29042
+[   60264 ms] exit rc=0

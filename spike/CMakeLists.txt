@@ -4,7 +4,7 @@ project(linotch_layer_shell_spike LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Gui)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Gui Quick)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(WAYLAND_CLIENT REQUIRED IMPORTED_TARGET wayland-client)
 
@@ -43,23 +43,47 @@ add_custom_command(
     COMMENT "Generating xdg-shell client protocol"
     VERBATIM)
 
-add_executable(linotch-layer-shell-spike
+set(SPIKE_SOURCES
     src/main.cpp
     "${PROTOCOL_SOURCE}"
     "${PROTOCOL_HEADER}"
     "${XDG_PROTOCOL_SOURCE}"
     "${XDG_PROTOCOL_HEADER}")
 
-target_compile_definitions(linotch-layer-shell-spike PRIVATE _GNU_SOURCE)
-target_compile_options(linotch-layer-shell-spike PRIVATE -Wall -Wextra)
+# Two executables, deliberately. linotch-spike-gui links Qt6::Gui only, which is
+# what the product shell surface would link; linotch-spike-quick adds Qt6::Quick.
+# Measuring the QPainter path inside a binary that also links Quick charges it for
+# ~17 MB of resident libQt6Quick / libQt6Qml / libQt6Widgets / libicui18n pages,
+# which is the exact number this spike exists to get right.
+add_executable(linotch-spike-gui ${SPIKE_SOURCES})
+add_executable(linotch-spike-quick ${SPIKE_SOURCES})
+
+target_compile_definitions(linotch-spike-gui PRIVATE _GNU_SOURCE)
+target_compile_definitions(linotch-spike-quick PRIVATE _GNU_SOURCE SPIKE_HAS_QUICK)
+target_compile_options(linotch-spike-gui PRIVATE -Wall -Wextra)
+target_compile_options(linotch-spike-quick PRIVATE -Wall -Wextra)
+
+# Spike 0b loads Pill.qml / Panel.qml from the source tree by absolute path.
+# The product would compile the QML into a qrc module instead; a spike does not
+# need the deployment machinery.
+set(SPIKE_QML_DEFINE SPIKE_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}/qml")
+target_compile_definitions(linotch-spike-gui PRIVATE "${SPIKE_QML_DEFINE}")
+target_compile_definitions(linotch-spike-quick PRIVATE "${SPIKE_QML_DEFINE}")
 
 # third_party/qt6 carries a verbatim copy of Qt 6.4.2's
 # qpa/qplatformnativeinterface.h, needed for the documented
 # QPlatformNativeInterface route. See third_party/qt6/README.md.
-target_include_directories(linotch-layer-shell-spike PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/qt6"
-    "${GENERATED_DIR}")
+foreach(target linotch-spike-gui linotch-spike-quick)
+    target_include_directories(${target} PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/qt6"
+        "${GENERATED_DIR}")
+endforeach()
 
-target_link_libraries(linotch-layer-shell-spike PRIVATE
+target_link_libraries(linotch-spike-gui PRIVATE
     Qt6::Gui
+    PkgConfig::WAYLAND_CLIENT)
+
+target_link_libraries(linotch-spike-quick PRIVATE
+    Qt6::Gui
+    Qt6::Quick
     PkgConfig::WAYLAND_CLIENT)

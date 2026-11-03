@@ -1,0 +1,31 @@
+[       0 ms] QSurfaceFormat::setDefaultFormat(alpha=8) applied before QGuiApplication
+[      11 ms] qt-quick env: QT_QUICK_BACKEND=software QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+[      11 ms] platform=wayland
+[      13 ms] qt-quick: QQuickView stands in for QWindow (SizeRootObjectToView, transparent fill)
+[      13 ms] QWindow::create() returned (winId=1, visible=0)
+[      13 ms] OQ1 probe: nativeResourceForIntegration("display")=0x58b4d6070fe0 (non-null)
+[      13 ms] OQ1 probe: nativeResourceForWindow("surface")=0x58b4d6173c10 (non-null)
+[      13 ms] OQ1 answer: YES (display and surface are both non-null after create(), before any commit)
+[      13 ms] wl_surface protocol version=4
+[      13 ms] registry created; globals will arrive through Qt's event loop
+[      15 ms] global wl_shm v2 (bound v1)
+[      15 ms] global zwlr_layer_shell_v1 v5 (bound v5)
+[      15 ms] layer surface created: layer=TOP anchor=top size=420x340 exclusive_zone=0 keyboard=none (layer_shell bound v5)
+[      15 ms] initial commit sent with NO buffer attached; waiting for configure
+[      15 ms] event configure: serial=273243 requested=420x340 using=420x340 (acked)
+[      15 ms] qt-quick: loading /home/kufgr/LiNotch/spike/qml/Panel.qml
+[      71 ms] qt-quick: show() issued after configure ack; alpha_buffer=-1 hasAlpha=0
+[      76 ms] qt-quick: first frameSwapped at 76 ms
+[      77 ms] gl-stack: libOpenGL.so.0.0.0, libGLX.so.0.0.0, libEGL.so.1.1.0
+[      77 ms] quick-stack: libQt6QuickLayouts.so.6.4.2, libQt6QmlWorkerScript.so.6.4.2, libQt6Qml.so.6.4.2, libQt6Quick.so.6.4.2, libQt6QmlModels.so.6.4.2 over 627 mapped lines
+[      78 ms] final self metrics: rss_kb=58088 pss_kb=36778
+[      78 ms] mapped=yes (QQuickWindow frameSwapped); surface=0x58b4d6173c10 size=420x340
+[      78 ms] running for 20 s from map; samples taken by scripts/measure-oq2.sh
+[     107 ms] event frame done (time=15040794): compositor presented the surface
+[    1025 ms] qt-quick: 60 frames swapped; anim=0 size=420x340
+[    1027 ms] final self metrics: rss_kb=62116 pss_kb=38572
+[    1029 ms] gl-stack: libOpenGL.so.0.0.0, libGLX.so.0.0.0, libEGL.so.1.1.0
+[    1029 ms] quick-stack: libQt6QuickLayouts.so.6.4.2, libQt6QmlWorkerScript.so.6.4.2, libQt6Qml.so.6.4.2, libQt6Quick.so.6.4.2, libQt6QmlModels.so.6.4.2 over 630 mapped lines
+[   20308 ms] duration elapsed; quitting
+[   20315 ms] final self metrics: rss_kb=57444 pss_kb=35911
+[   20315 ms] exit rc=0

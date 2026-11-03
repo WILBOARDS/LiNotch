@@ -1,0 +1,27 @@
+[       0 ms] QSurfaceFormat::setDefaultFormat(alpha=8) applied before QGuiApplication
+[      17 ms] qt-quick env: QT_QUICK_BACKEND=<unset> QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+[      17 ms] platform=wayland
+[     100 ms] qt-quick: QQuickView stands in for QWindow (SizeRootObjectToView, transparent fill)
+[     100 ms] QWindow::create() returned (winId=1, visible=0)
+[     100 ms] OQ1 probe: nativeResourceForIntegration("display")=0x5b55597cefd0 (non-null)
+[     100 ms] OQ1 probe: nativeResourceForWindow("surface")=0x5b5559b57480 (non-null)
+[     100 ms] OQ1 answer: YES (display and surface are both non-null after create(), before any commit)
+[     100 ms] wl_surface protocol version=4
+[     100 ms] registry created; globals will arrive through Qt's event loop
+[     105 ms] global wl_shm v2 (bound v1)
+[     105 ms] global zwlr_layer_shell_v1 v5 (bound v5)
+[     105 ms] layer surface created: layer=TOP anchor=top size=260x36 exclusive_zone=0 keyboard=none (layer_shell bound v5)
+[     105 ms] initial commit sent with NO buffer attached; waiting for configure
+[     105 ms] event configure: serial=275559 requested=260x36 using=260x36 (acked)
+[     105 ms] qt-quick: loading /home/kufgr/LiNotch/spike/qml/Pill.qml
+[     125 ms] qt-quick: show() issued after configure ack; alpha_buffer=8 hasAlpha=1
+[     159 ms] qt-quick: first frameSwapped at 159 ms
+[     162 ms] gl-stack: renderD128, libgallium-26.1.6-1pop0~1787580452~24.04~a5619ea.so, libnvidia-gpucomp.so.595.104.02, libnvidia-eglcore.so.595.104.02, libdrm_intel.so.1.134.0, libdrm_amdgpu.so.1.134.0, libEGL_mesa.so.0.0.0, libnvidia-egl-xlib.so.1.0.5, libnvidia-egl-xcb.so.1.0.5, libnvidia-egl-gbm.so.1.1.3, libnvidia-egl-wayland.so.1.1.21, libdrm.so.2.134.0, libnvidia-egl-wayland2.so.1.0.1, libnvidia-glsi.so.595.104.02, libEGL_nvidia.so.595.104.02, libwayland-egl.so.1.23.1, libOpenGL.so.0.0.0, libGLX.so.0.0.0, libEGL.so.1.1.0
+[     162 ms] quick-stack: libQt6QmlWorkerScript.so.6.4.2, libQt6Qml.so.6.4.2, libQt6Quick.so.6.4.2, libQt6QmlModels.so.6.4.2 over 861 mapped lines
+[     170 ms] final self metrics: rss_kb=158628 pss_kb=67627
+[     170 ms] mapped=yes (QQuickWindow frameSwapped); surface=0x5b5559b57480 size=260x36
+[     170 ms] running for 20 s from map; samples taken by scripts/measure-oq2.sh
+[     170 ms] event frame done (time=15121424): compositor presented the surface
+[   19795 ms] duration elapsed; quitting
+[   19809 ms] final self metrics: rss_kb=158220 pss_kb=67241
+[   19809 ms] exit rc=0

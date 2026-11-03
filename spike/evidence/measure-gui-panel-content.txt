@@ -1,0 +1,23 @@
+binary: ./build/linotch-spike-gui
+mode: qt-bypass  duration: 20s  wayland: wayland-1
+log: /tmp/linotch-spike-6JoOxS.log
+
+samples: 21 over 21.257s
+RSS kB: mean=35191 min=35188 max=35252  (limit 61440)
+CPU %:  total_mean=0.047 steady_mean=0.052 median_sample=0.000 max_sample=0.988  (limit 0.3)
+
+--- spike phases ---
+[      11 ms] OQ1 probe: nativeResourceForIntegration("display")=0x567233566930 (non-null)
+[      11 ms] OQ1 probe: nativeResourceForWindow("surface")=0x5672335df660 (non-null)
+[      11 ms] OQ1 answer: YES (display and surface are both non-null after create(), before any commit)
+[      14 ms] global wl_shm v2 (bound v1)
+[      14 ms] global zwlr_layer_shell_v1 v5 (bound v5)
+[      14 ms] layer surface created: layer=TOP anchor=top size=420x340 exclusive_zone=0 keyboard=none (layer_shell bound v5)
+[      14 ms] initial commit sent with NO buffer attached; waiting for configure
+[      14 ms] event configure: serial=255665 requested=420x340 using=420x340 (acked)
+[      62 ms] quick-stack: not mapped over 373 mapped lines
+[      63 ms] mapped=yes (Qt QBackingStore buffer committed); surface=0x5672335df660 size=420x340
+[      69 ms] event frame done (time=14836793): compositor presented the surface
+
+full log: /tmp/linotch-spike-6JoOxS.log
+PASS: within RSS and CPU limits for this window

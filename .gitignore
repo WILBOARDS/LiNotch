@@ -33,3 +33,6 @@ debian/linotch*/
 
 # local
 *.log
+
+# ...except spike evidence: EVIDENCE.md cites these raw logs as artifacts.
+!spike/evidence/logs/*.log

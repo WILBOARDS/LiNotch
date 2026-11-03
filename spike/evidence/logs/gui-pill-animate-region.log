@@ -1,0 +1,26 @@
+[       0 ms] mode=qt-bypass: set QT_WAYLAND_USE_BYPASSWINDOWMANAGERHINT=1 before QGuiApplication
+[       0 ms] QSurfaceFormat::setDefaultFormat(alpha=8) applied before QGuiApplication
+[      11 ms] platform=wayland
+[      11 ms] QWindow::create() returned (winId=1, visible=0)
+[      11 ms] OQ1 probe: nativeResourceForIntegration("display")=0x5fe878b4e930 (non-null)
+[      11 ms] OQ1 probe: nativeResourceForWindow("surface")=0x5fe878bc6710 (non-null)
+[      11 ms] OQ1 answer: YES (display and surface are both non-null after create(), before any commit)
+[      11 ms] wl_surface protocol version=4
+[      11 ms] registry created; globals will arrive through Qt's event loop
+[      13 ms] global wl_shm v2 (bound v1)
+[      13 ms] global zwlr_layer_shell_v1 v5 (bound v5)
+[      13 ms] layer surface created: layer=TOP anchor=top size=260x36 exclusive_zone=0 keyboard=none (layer_shell bound v5)
+[      13 ms] initial commit sent with NO buffer attached; waiting for configure
+[      13 ms] event configure: serial=255666 requested=260x36 using=260x36 (acked)
+[      13 ms] qt-bypass: resizing window to 260x36, show(), then QBackingStore paint
+[      22 ms] qt-bypass: flush issued (Qt owns the buffer); content=Pill alpha_buffer=-1 format_hasAlpha=0 store_format=6 store_hasAlpha=1
+[      23 ms] gl-stack: libOpenGL.so.0.0.0, libGLX.so.0.0.0, libEGL.so.1.1.0
+[      23 ms] quick-stack: not mapped over 351 mapped lines
+[      24 ms] final self metrics: rss_kb=30996 pss_kb=14919
+[      24 ms] mapped=yes (Qt QBackingStore buffer committed); surface=0x5fe878bc6710 size=260x36
+[      24 ms] running for 60 s from map; samples taken by scripts/measure-oq2.sh
+[      32 ms] event frame done (time=14858149): compositor presented the surface
+[     985 ms] final self metrics: rss_kb=31144 pss_kb=14919
+[   59883 ms] duration elapsed; quitting
+[   59884 ms] final self metrics: rss_kb=30912 pss_kb=14802
+[   59884 ms] exit rc=0

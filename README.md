@@ -123,4 +123,6 @@ linotch restore-notifications
 
 ## License
 
-Not chosen yet.
+MIT. The reference projects are read for ideas only: L4-Windows-NotchBar is
+GPL-3.0 and Nusa declares no license, so no code from either is copied, and
+nothing here is derived from their sources.

@@ -115,6 +115,8 @@ linotch restore-notifications
 ## Layout of this repository
 
 - `docs/superpowers/specs/` — the design document
+- `docs/feature-board.md` — every feature in the two Windows notch bars, with its Linux
+  route and cost, used to decide what LiNotch builds
 - `archive/python-prototype/` — the original Python/GTK4 attempt. Kept for reference; it
   does not run (it imports GTK4 and Adwaita typelibs that are not installed, one file is
   truncated mid-statement, and it mixes the GTK3 `GtkLayerShell` binding with GTK4)

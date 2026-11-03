@@ -1,0 +1,13 @@
+[       4 ms] platform=wayland
+[       4 ms] QWindow::create() returned (winId=1, visible=0)
+[       4 ms] OQ1 probe: nativeResourceForIntegration("display")=0x58938e21f430 (non-null)
+[       4 ms] OQ1 probe: nativeResourceForWindow("surface")=0x58938e237c10 (non-null)
+[       4 ms] OQ1 answer: YES (display and surface are both non-null after create(), before any commit)
+[       4 ms] wl_surface protocol version=4
+[       4 ms] registry created; globals will arrive through Qt's event loop
+[       8 ms] global wl_shm v2 (bound v1)
+[       8 ms] global zwlr_layer_shell_v1 v5 (bound v5)
+[       8 ms] layer surface created: layer=TOP anchor=top size=260x36 exclusive_zone=0 keyboard=none (layer_shell bound v5)
+[       8 ms] control mode: calling QWindow::show() WITHOUT bypass; expecting a wl_surface role conflict
+xdg_wm_base#29: error 0: Surface already has a role.
+The Wayland connection experienced a fatal error: Protocol error

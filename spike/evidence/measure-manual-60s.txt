@@ -1,0 +1,22 @@
+binary: ./build/linotch-layer-shell-spike
+mode: manual  duration: 60s  wayland: wayland-1
+log: /tmp/linotch-spike-KYv5aW.log
+
+samples: 60 over 60.825s
+RSS kB: mean=20860 min=20860 max=20860  (limit 61440)
+CPU %:  total_mean=0.000 steady_mean=0.000 median_sample=0.000 max_sample=0.000  (limit 0.3)
+
+--- spike phases ---
+[       4 ms] OQ1 probe: nativeResourceForIntegration("display")=0x57e484ffb430 (non-null)
+[       4 ms] OQ1 probe: nativeResourceForWindow("surface")=0x57e485013c10 (non-null)
+[       4 ms] OQ1 answer: YES (display and surface are both non-null after create(), before any commit)
+[       9 ms] global wl_shm v2 (bound v1)
+[       9 ms] global zwlr_layer_shell_v1 v5 (bound v5)
+[       9 ms] layer surface created: layer=TOP anchor=top size=260x36 exclusive_zone=0 keyboard=none (layer_shell bound v5)
+[       9 ms] initial commit sent with NO buffer attached; waiting for configure
+[       9 ms] event configure: serial=86909 requested=260x36 using=260x36 (acked)
+[       9 ms] mapped=yes (manual wl_shm buffer attached and committed); surface=0x57e485013c10 size=260x36
+[      14 ms] event frame done (time=4616007): compositor presented the surface
+
+full log: /tmp/linotch-spike-KYv5aW.log
+PASS: within RSS and CPU limits for this window

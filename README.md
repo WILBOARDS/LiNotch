@@ -5,11 +5,14 @@ a panel with media controls, notifications, system meters and quick toggles. Bui
 left running: the steady state is a single small surface that does not repaint, does not
 poll, and does not reserve screen space.
 
-**Status: design phase.** The architecture is agreed and written down, and no
-implementation exists yet. Read
+**Status: design agreed, both spikes run, no product code yet.** The architecture
+is written down in
 [docs/superpowers/specs/2026-11-03-linotch-design.md](docs/superpowers/specs/2026-11-03-linotch-design.md).
-The first thing to happen is a throwaway spike that proves the Qt 6.4 Wayland surface path
-works before any feature is written.
+Spike 0 proved the Qt 6.4 Wayland surface path and measured the idle floor; Spike 0b
+then compared Qt Quick against a hand-painted surface and came out for hand-painting
+(31 MB idle against 51 MB, with no extra runtime packages). Numbers, commands and the
+measurements that had to be thrown away and retaken:
+[spike/EVIDENCE.md](spike/EVIDENCE.md).
 
 ## Why it does not already exist
 
@@ -75,29 +78,44 @@ Designed and verified against:
 
 ## Setting up the build environment
 
-These are the packages for the Qt 6 / QML route, checked against the Pop!_OS 24.04 archive
+These are the packages for the Qt 6 route, checked against the Pop!_OS 24.04 archive
 on the machine above on 2026-11-03.
 
-1. Already installed and working here: `qt6-base-dev`, `qt6-wayland`, `cmake`,
-   `ninja-build`, `wayland-scanner`.
-2. Have archive candidates but are not installed yet: `qt6-declarative-dev`,
-   `qml6-module-qtquick`.
-3. `libwayland-dev` — needed for the layer-shell client code, **not yet confirmed available
-   in your configured apt components** (the check was interrupted). Confirm it before the
-   spike.
+1. Installed and working here: `qt6-base-dev`, `qt6-wayland`, `libwayland-dev` 1.23.1,
+   `cmake`, `ninja-build`, and the `wayland-scanner` binary — which comes from
+   `libwayland-bin`, because no package is literally named `wayland-scanner`.
+2. Installed for Spike 0b and **not needed by the product**: `qt6-declarative-dev` plus
+   six runtime QML modules (`qml6-module-qtquick`, `-qtquick-window`, `-qtquick-layouts`,
+   `qml6-module-qtqml`, `-qtqml-models`, `-qtqml-workerscript`). Without the last one,
+   `import QtQuick` fails at runtime with `module "QtQml.WorkerScript" is not installed` —
+   a failure that only appears on a user's machine after install, since the `-dev` package
+   does not pull it.
+3. The one real gap: `qt6-base-private-dev`, which owns
+   `qpa/qplatformnativeinterface.h`. The spike vendors that single header under
+   `spike/third_party/qt6/`; the product should depend on the package instead.
 
 ```bash
-sudo apt install qt6-declarative-dev qml6-module-qtquick libwayland-dev
+pkexec apt-get install qt6-base-private-dev
 ```
 
-Note what is *not* an option here: `liblayershellqtinterface` in the 24.04 archive depends
-on `qtbase5-dev`, so there is no Qt6 layer-shell-qt to install. That is why the binding is
-hand-vendored in this project.
+`sudo` has no TTY on this machine, so privileged installs go through `pkexec` and a polkit
+prompt. Note what is *not* an option here: `liblayershellqtinterface` in the 24.04 archive
+depends on `qtbase5-dev`, so there is no Qt6 layer-shell-qt to install. That is why the
+binding is hand-vendored in this project.
 
 ## Building
 
-Not yet possible — there is no `CMakeLists.txt` until sub-spec 1 starts. The spike lives in
-`spike/` and is explicitly throwaway.
+The product has no `CMakeLists.txt` yet — that starts with sub-spec 1. The spike builds
+today and produces two deliberately separate throwaway binaries:
+
+```bash
+cmake -S spike -B spike/build -G Ninja && cmake --build spike/build
+```
+
+`spike/build/linotch-spike-gui` links `Qt6::Gui` only; `linotch-spike-quick` adds
+`Qt6::Quick`. They stay separate because measuring the hand-painted path in a binary that
+also links Quick charges it for ~17 MB of resident Quick/Qml/Widgets/ICU pages. Modes and
+flags: `spike/README.md`.
 
 ## Command line
 

@@ -13,8 +13,8 @@ moc_*.h
 ui_*.h
 *_autogen/
 
-# generated wayland protocol code
-src/protocol/generated/
+# generated wayland protocol code (the vendored XML in protocol/ is committed)
+protocol/generated/
 
 # packaging
 deb-build/
